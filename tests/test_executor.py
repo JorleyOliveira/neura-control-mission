@@ -79,6 +79,41 @@ async def test_executor_preserves_system_and_runs_tool(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_repeated_invalid_actions_get_reanchored_and_recover(tmp_path: Path):
+    agents = tmp_path / 'agents'
+    agents.mkdir()
+    raw = '---\nname: Exact Agent\ndescription: research\n---\nEXACT SYSTEM PROMPT\n'
+    (agents / 'exact.md').write_text(raw, encoding='utf-8')
+    db = Database(tmp_path / 'test.db')
+    marketplace = AgentMarketplace(db, agents)
+    await marketplace.index()
+    llm = ScriptedLLM([
+        'I will help you with this research task!',          # invalid: no JSON
+        '{"type": "tool_call"}',                              # invalid: missing tool
+        '{"type":"tool_call","tool":"filesystem.write","arguments":{"path":"x.txt","content":"ok"}}',
+        '{"type":"final","content":"recovered and done"}',
+    ])
+    runner = ScriptedRunner([{'path': 'x.txt', 'bytes': 2}])
+    executor = AgentExecutor(marketplace, llm, db, runner=runner)  # type: ignore[arg-type]
+    await db.create_run('run3', 'session', 'test')
+
+    result = await executor.run(
+        run_id='run3', task_id='task', agent_id='exact', user_prompt='TASK',
+        required_tools=['filesystem.write'],
+    )
+
+    assert result == 'recovered and done'
+    # The second recovery message must re-anchor the full action format.
+    user_msgs = [m['content'] for m in llm.calls[2]['messages'] if m['role'] == 'user']
+    anchors = [m for m in user_msgs if 'You keep replying outside the action protocol' in m]
+    assert anchors, 're-anchored recovery message not found'
+    assert '"type":"tool_call"' in anchors[0]
+    assert 'filesystem.write' in anchors[0]
+    rows = await db.fetchall("SELECT COUNT(*) AS n FROM events WHERE run_id='run3' AND event_type='AGENT_ACTION_INVALID'")
+    assert rows[0]['n'] == 2
+
+
+@pytest.mark.asyncio
 async def test_truncated_skill_invoke_requires_continuation_read(tmp_path: Path):
     agents = tmp_path / 'agents'
     agents.mkdir()

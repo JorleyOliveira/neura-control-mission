@@ -44,6 +44,7 @@ class AgentExecutor:
         ]
         used_tools: set[str] = set()
         pending_skill_read: dict | None = None
+        invalid_streak = 0
 
         await self.db.add_event(
             run_id,
@@ -62,6 +63,7 @@ class AgentExecutor:
             try:
                 action = parse_action(raw)
             except Exception as exc:
+                invalid_streak += 1
                 await self.db.add_event(
                     run_id,
                     'AGENT_ACTION_INVALID',
@@ -72,20 +74,35 @@ class AgentExecutor:
                         'step': step,
                         'error': str(exc),
                         'raw_preview': raw[:2000],
-                    },
+                    }
                 )
+
+                # A generic nudge first; after repeated failures re-anchor the
+                # whole action format so drifting models snap back to valid JSON.
+                if invalid_streak >= 2:
+                    recovery = (
+                        f'Invalid runtime action (attempt {invalid_streak}): {exc}. '
+                        'You keep replying outside the action protocol. '
+                        'Your ENTIRE next reply MUST be exactly one JSON object, no prose, '
+                        'no markdown fences, in one of these two shapes:\n'
+                        '{"type":"tool_call","tool":"web.search","arguments":{"query":"example"}}\n'
+                        '{"type":"final","content":"final deliverable text"}\n'
+                        f'Remember: required tools not yet used: '
+                        f'{sorted(set(required_tools) - used_tools)}.'
+                    )
+                else:
+                    recovery = (
+                        f'Invalid runtime action: {exc}. '
+                        'Return exactly one valid JSON action object.'
+                    )
 
                 messages.extend([
                     {'role': 'assistant', 'content': raw},
-                    {
-                        'role': 'user',
-                        'content': (
-                            f'Invalid runtime action: {exc}. '
-                            'Return exactly one valid JSON action object.'
-                        ),
-                    },
+                    {'role': 'user', 'content': recovery},
                 ])
                 continue
+
+            invalid_streak = 0
 
             if action['type'] == 'final':
                 if pending_skill_read is not None:

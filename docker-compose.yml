@@ -76,7 +76,7 @@ services:
       NEURALAKE_MODEL: auto
       AGENT_MAX_STEPS: "16"
       TOOL_TIMEOUT_SECONDS: "45"
-      MAX_TASK_ATTEMPTS: "2"
+      MAX_TASK_ATTEMPTS: "3"
       MARKETPLACE_CANDIDATE_LIMIT: "5"
       SKILLS_DIR: /app/data/skills
       WORKER_GATEWAY_BASE_URL: http://worker:8010

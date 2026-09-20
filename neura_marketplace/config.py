@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # Server-side only; used to mint RTC tokens for browser clients, never sent to the UI.
     agora_app_certificate: str = ''
 
-    max_task_attempts: int = 2
+    max_task_attempts: int = 3
     marketplace_candidate_limit: int = 5
     agent_max_steps: int = 16
     tool_timeout_seconds: float = 45.0
