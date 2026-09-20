@@ -1,0 +1,26 @@
+Neura Marketplace Agent Runtime patch
+
+Adds:
+- isolated runner service
+- JSON tool-call agent loop
+- web.search / web.fetch
+- filesystem.list / read / write
+- shell.exec
+- skill.list / read / invoke
+- exact prompt-master skill from supplied source, including references
+- agent capability mapping
+- required_tools-aware marketplace selection
+- tool_calls SQLite audit trail + TOOL_* events
+- direct runner smoke test
+- real LLM agent runtime smoke test
+
+Does NOT include or overwrite:
+- data/agency-agents
+- data/sample-agents
+- .env
+
+Validation before packaging:
+- python -m compileall: PASS
+- python -m pytest -q: 13 passed
+- docker-compose.yml YAML parse/structure: PASS
+- Docker runtime execution not run in build sandbox because Docker daemon/CLI is unavailable there

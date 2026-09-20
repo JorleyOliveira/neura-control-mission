@@ -1,0 +1,295 @@
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: neura-marketplace:local
+    container_name: neura_marketplace_runner
+    command:
+      - python
+      - -m
+      - uvicorn
+      - neura_marketplace.runner_app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8002"
+      - --no-access-log
+    environment:
+      PYTHONPATH: /app
+      WORKSPACE_ROOT: /workspace
+      TOOL_TIMEOUT_SECONDS: "45"
+      SKILLS_DIR: /app/data/skills
+      A2A_OUTBOUND_ALLOWLIST: "http://seller:8020/"
+    ports:
+      - "127.0.0.1:8002:8002"
+    volumes:
+      - ./tmp-docker-workspace:/workspace
+      - ./data/skills:/app/data/skills:ro
+    networks:
+      - neura-marketplace-network
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  marcelo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: neura-marketplace:local
+    container_name: neura_marketplace_marcelo
+    command:
+      - python
+      - -m
+      - uvicorn
+      - neura_marketplace.marcelo_app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+      - --no-access-log
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_PATH: /app/state/neura.db
+      AGENT_DATASET_DIR: /app/data/agency-agents
+      SAMPLE_AGENT_DATASET_DIR: /app/data/sample-agents
+      JARVIS_BASE_URL: http://jarvis:8000
+      MARCELO_BASE_URL: http://marcelo:8001
+      RUNNER_BASE_URL: http://runner:8002
+      NEURALAKE_BASE_URL: https://api.neuralake.cloud/v1
+      NEURALAKE_MODEL: auto
+      AGENT_MAX_STEPS: "16"
+      TOOL_TIMEOUT_SECONDS: "45"
+      MAX_TASK_ATTEMPTS: "2"
+      MARKETPLACE_CANDIDATE_LIMIT: "5"
+      SKILLS_DIR: /app/data/skills
+      WORKER_GATEWAY_BASE_URL: http://worker:8010
+      WORKER_GATEWAY_TOKEN: demo-a2a-token
+      # NeuraLake's reasoning endpoint intermittently 504s on large prompts; text is the stable demo default.
+      MARCELO_MODEL: text
+      VERIFIER_MODEL: text
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - neura_state:/app/state
+      - ./data/skills:/app/data/skills:ro
+    networks:
+      - neura-marketplace-network
+    depends_on:
+      runner:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  jarvis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: neura-marketplace:local
+    container_name: neura_marketplace_jarvis
+    command:
+      - python
+      - -m
+      - uvicorn
+      - neura_marketplace.jarvis_app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --no-access-log
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_PATH: /app/state/neura.db
+      JARVIS_BASE_URL: http://jarvis:8000
+      MARCELO_BASE_URL: http://marcelo:8001
+      RUNNER_BASE_URL: http://runner:8002
+      SELLER_BASE_URL: http://seller:8020
+      NEURALAKE_BASE_URL: https://api.neuralake.cloud/v1
+      NEURALAKE_MODEL: auto
+    ports:
+      - "8000:8000"
+    volumes:
+      - neura_state:/app/state
+    networks:
+      - neura-marketplace-network
+    depends_on:
+      marcelo:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: neura-marketplace:local
+    container_name: neura_marketplace_worker
+    command:
+      - python
+      - -m
+      - uvicorn
+      - neura_marketplace.worker_app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8010"
+      - --no-access-log
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      WORKER_GATEWAY_DATABASE_PATH: /app/state/neura-worker.db
+      AGENT_DATASET_DIR: /app/data/agency-agents
+      SAMPLE_AGENT_DATASET_DIR: /app/data/sample-agents
+      RUNNER_BASE_URL: http://runner:8002
+      NEURALAKE_BASE_URL: https://api.neuralake.cloud/v1
+      NEURALAKE_MODEL: auto
+      AGENT_MAX_STEPS: "32"
+      TOOL_TIMEOUT_SECONDS: "45"
+      WORKER_GATEWAY_TOKEN: demo-a2a-token
+    ports:
+      - "127.0.0.1:8010:8010"
+    volumes:
+      - neura_state:/app/state
+    networks:
+      - neura-marketplace-network
+    depends_on:
+      runner:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  seller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: neura-marketplace:local
+    container_name: neura_marketplace_seller
+    command:
+      - python
+      - -m
+      - uvicorn
+      - neura_marketplace.seller_app:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8020"
+      - --no-access-log
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      SELLER_DATABASE_PATH: /app/state/seller.db
+      SELLER_BASE_URL: http://seller:8020
+      NEURALAKE_BASE_URL: https://api.neuralake.cloud/v1
+      NEURALAKE_MODEL: auto
+    ports:
+      - "127.0.0.1:8020:8020"
+    volumes:
+      - neura_state:/app/state
+    networks:
+      - neura-marketplace-network
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ../autonomous-agent-swarm
+      dockerfile: Dockerfile
+    container_name: neura_marketplace_frontend
+    ports:
+      - "8080:8080"
+    networks:
+      - neura-marketplace-network
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+networks:
+  neura-marketplace-network:
+    name: neura-marketplace-network
+    driver: bridge
+
+volumes:
+  neura_state:
+    name: neura-marketplace-state

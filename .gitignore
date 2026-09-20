@@ -1,0 +1,20 @@
+data/
+*.pyc
+*.db*
+
+# secrets - never commit
+.env
+.env.*
+!.env.example
+
+# runtime artifacts
+__pycache__/
+*.pyc
+output.xml
+tmp-a2a-workspace/
+tmp-docker-state/
+tmp-docker-workspace/
+.DS_Store
+
+# local-only skills copy (runner uses ./data/skills in docker)
+/skills/

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="${RUNNER_URL:-http://127.0.0.1:8002}"
+RUN_ID="runner-smoke-$(date +%s)"
+TASK_ID="tool-test"
+AGENT_ID="research:research-synthesist"
+
+call_tool() {
+  local tool="$1"
+  local args="$2"
+  jq -n \
+    --arg run_id "$RUN_ID" \
+    --arg task_id "$TASK_ID" \
+    --arg agent_id "$AGENT_ID" \
+    --arg tool "$tool" \
+    --argjson arguments "$args" \
+    '{run_id:$run_id,task_id:$task_id,agent_id:$agent_id,tool:$tool,arguments:$arguments}' \
+  | curl -fsS "$BASE_URL/tools/execute" -H 'Content-Type: application/json' -d @-
+}
+
+curl -fsS "$BASE_URL/health" | jq
+
+echo '--- skill.invoke'
+call_tool 'skill.invoke' '{"name":"prompt-master","input":"Research NeuraLake and produce an evidence artifact"}' | jq
+
+echo '--- filesystem.write'
+call_tool 'filesystem.write' '{"path":"hello.txt","content":"runner works"}' | jq
+
+echo '--- filesystem.read'
+call_tool 'filesystem.read' '{"path":"hello.txt"}' | jq
+
+echo '--- shell.exec'
+call_tool 'shell.exec' '{"command":"python -c \"print(40+2)\""}' | jq
+
+echo '--- web.search'
+SEARCH="$(call_tool 'web.search' '{"query":"NeuraLake AI","max_results":5}')"
+echo "$SEARCH" | jq
+URL="$(echo "$SEARCH" | jq -r '.result.results[0].url')"
+
+echo "--- web.fetch $URL"
+call_tool 'web.fetch' "$(jq -nc --arg url "$URL" '{url:$url}')" | jq '{ok,tool,result:{url:.result.url,status_code:.result.status_code,title:.result.title,text:(.result.text[:800])}}'
+
+echo "RUN_ID=$RUN_ID"

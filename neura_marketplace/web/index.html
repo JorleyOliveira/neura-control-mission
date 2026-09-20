@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Neura Marketplace</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin:0; background:#0b0d10; color:#e8eaed; }
+    .shell { max-width:1400px; margin:0 auto; padding:24px; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+    h1 { font-size:20px; margin:0; }
+    .badge { border:1px solid #30363d; border-radius:999px; padding:6px 10px; color:#9da7b3; font-size:12px; }
+    .grid { display:grid; grid-template-columns:minmax(320px, .8fr) minmax(520px, 1.6fr); gap:16px; }
+    .panel { background:#11151a; border:1px solid #242a32; border-radius:12px; overflow:hidden; min-height:75vh; }
+    .panel h2 { margin:0; padding:14px 16px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; border-bottom:1px solid #242a32; color:#9da7b3; }
+    #chat, #events { padding:16px; overflow:auto; height:calc(75vh - 115px); }
+    .msg { margin:0 0 12px; padding:10px 12px; border-radius:8px; white-space:pre-wrap; line-height:1.45; }
+    .user { background:#1d2630; }
+    .assistant { background:#151b21; border:1px solid #242a32; }
+    form { display:flex; gap:8px; border-top:1px solid #242a32; padding:12px; }
+    textarea { flex:1; resize:none; min-height:54px; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0b0d10; color:#e8eaed; }
+    button { border:0; border-radius:8px; padding:0 16px; font-weight:700; cursor:pointer; }
+    .event { border-left:3px solid #39424d; padding:10px 12px; margin-bottom:10px; background:#0f1317; border-radius:5px; }
+    .event .top { display:flex; gap:8px; align-items:center; font-size:12px; }
+    .type { font-weight:800; }
+    .actor { color:#9da7b3; }
+    .payload { margin-top:7px; color:#bdc5cf; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; }
+    .DISCOVER,.VERIFY_DISCOVER { border-left-color:#58a6ff; }
+    .EVALUATE { border-left-color:#bc8cff; }
+    .HIRE,.VERIFY_HIRE { border-left-color:#f2cc60; }
+    .DELEGATE { border-left-color:#39d353; }
+    .VERIFY_PASS,.FINAL_RESULT { border-left-color:#2ea043; }
+    .VERIFY_FAIL,.RUN_FAILED,.REJECT_AND_REHIRE { border-left-color:#f85149; }
+    @media(max-width:900px){ .grid{grid-template-columns:1fr}.panel{min-height:55vh}#chat,#events{height:45vh} }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header><h1>NEURA MARKETPLACE · JARVIS ↔ MARCELO</h1><span id="run" class="badge">no active run</span></header>
+  <div class="grid">
+    <section class="panel">
+      <h2>Human / JARVIS</h2>
+      <div id="chat"></div>
+      <form id="form">
+        <textarea id="input" placeholder="Example: Launch an AI code review SaaS for small engineering teams. I need market research, MVP, design direction and a launch plan."></textarea>
+        <button>Send</button>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>A2A execution · Discover → Evaluate → Hire → Delegate → Verify</h2>
+      <div id="events"></div>
+    </section>
+  </div>
+</div>
+<script>
+let sessionId = localStorage.getItem('neura_session') || null;
+let source = null;
+const chat = document.getElementById('chat');
+const events = document.getElementById('events');
+const input = document.getElementById('input');
+const form = document.getElementById('form');
+const runBadge = document.getElementById('run');
+
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+function addEvent(e) {
+  const div = document.createElement('div');
+  div.className = 'event ' + e.event_type;
+  const top = document.createElement('div'); top.className='top';
+  const type = document.createElement('span'); type.className='type'; type.textContent=e.event_type;
+  const actor = document.createElement('span'); actor.className='actor'; actor.textContent=e.actor;
+  top.append(type, actor);
+  const payload = document.createElement('div'); payload.className='payload';
+  payload.textContent = JSON.stringify(e.payload, null, 2);
+  div.append(top, payload); events.appendChild(div); events.scrollTop = events.scrollHeight;
+}
+function followRun(runId) {
+  if (source) source.close();
+  events.textContent='';
+  runBadge.textContent = runId;
+  source = new EventSource(`/api/runs/${runId}/events`);
+  source.addEventListener('marketplace', ev => addEvent(JSON.parse(ev.data)));
+  source.addEventListener('done', async ev => {
+    source.close();
+    const run = await fetch(`/api/runs/${runId}`).then(r=>r.json());
+    if (run.final_result) addMessage('assistant', run.final_result);
+    runBadge.textContent = `${runId} · ${run.status}`;
+  });
+}
+form.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const message = input.value.trim(); if (!message) return;
+  addMessage('user', message); input.value='';
+  const response = await fetch('/api/chat', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({message, session_id:sessionId})});
+  const data = await response.json();
+  if (!response.ok) { addMessage('assistant', data.detail || JSON.stringify(data)); return; }
+  sessionId = data.session_id; localStorage.setItem('neura_session', sessionId);
+  addMessage('assistant', data.message);
+  if (data.run_id) followRun(data.run_id);
+});
+</script>
+</body>
+</html>

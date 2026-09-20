@@ -1,0 +1,22 @@
+# Alternate host ports for environments where 8000-8002 are already taken
+# (e.g. an SSH tunnel). Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+services:
+  jarvis:
+    ports:
+      - "127.0.0.1:18000:8000"
+  marcelo:
+    ports:
+      - "127.0.0.1:18001:8001"
+  runner:
+    ports:
+      - "127.0.0.1:18002:8002"
+  worker:
+    ports:
+      - "127.0.0.1:18010:8010"
+  seller:
+    ports:
+      - "127.0.0.1:18020:8020"
+  frontend:
+    ports:
+      - "127.0.0.1:18080:8080"

@@ -1,0 +1,60 @@
+.
+├── AGENT_RUNTIME_TEST.md
+├── docker-compose.yml
+├── Dockerfile
+├── Makefile
+├── neura_marketplace
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── __init__.cpython-313.pyc
+│   │   ├── json_utils.cpython-313.pyc
+│   │   └── tool_protocol.cpython-313.pyc
+│   ├── capabilities.py
+│   ├── config.py
+│   ├── db.py
+│   ├── executor.py
+│   ├── jarvis_app.py
+│   ├── jarvis_core.py
+│   ├── json_utils.py
+│   ├── marcelo_app.py
+│   ├── marcelo_core.py
+│   ├── marketplace.py
+│   ├── models.py
+│   ├── neuralake.py
+│   ├── prompt_master.py
+│   ├── runner_app.py
+│   ├── runner_client.py
+│   ├── skill_catalog.py
+│   ├── tool_protocol.py
+│   └── web
+│       └── index.html
+├── PATCH_FILES.txt
+├── PATCH_MANIFEST.txt
+├── pyproject.toml
+├── README.md
+├── requirements.txt
+├── scripts
+│   ├── bootstrap_agents.sh
+│   ├── dev.py
+│   ├── index_agents.py
+│   ├── index_skills.py
+│   ├── smoke_runner.sh
+│   ├── smoke_runner.sh.bak
+│   └── test_runtime.py
+├── skills
+│   └── prompt-master
+│       ├── references
+│       │   ├── patterns.md
+│       │   └── templates.md
+│       └── SKILL.md
+├── t.txt
+└── tests
+    ├── test_capabilities.py
+    ├── test_dag.py
+    ├── test_executor.py
+    ├── test_json_utils.py
+    ├── test_marketplace.py
+    ├── test_runner_security.py
+    └── test_tool_protocol.py
+
+9 directories, 49 files
